@@ -1,0 +1,53 @@
+name: Deployment pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+    
+  workflow_dispatch:
+
+jobs:
+  simple_deployment_pipeline:
+      runs-on: ubuntu-18.04
+      steps:
+        - uses: actions/checkout@v2
+        - uses: actions/setup-node@v1
+          with:
+             node-version: '12.x'
+        - name: npm install backend
+          run: npm install
+        - name: npm install frontend
+          working-directory: './bloglist-frontend'
+          run: npm install
+        - name: lint
+          working-directory: './bloglist-frontend'
+          run: npm run lint
+        - name: build
+          working-directory: './bloglist-frontend'
+          run: npm run build
+        - name: move build
+          working-directory: './bloglist-frontend'
+          run: mv './build' '../'
+        - name: heroku deploy
+          if: ${{ github.event_name == 'push' && !(contains( join( toJson(github.event.commits.*.message) ), '#skip')) }}
+          uses: akhileshns/heroku-deploy@v3.8.9 # This is the action
+          with:
+            #appdir: "full-stack-open-pokedex"
+            heroku_api_key: ${{secrets.HEROKU_API_KEY}}
+            heroku_app_name: "blogsamu" #Must be unique in Heroku
+            heroku_email: "samu.rotko@gmail.com"
+            healthcheck: "https://blogsamu.herokuapp.com/health"
+            checkstring: "ok"
+            rollbackonhealthcheckfailed: true
+        - uses: actions/checkout@v2
+        - name: Bump version and push tag
+          if: ${{ github.event_name == 'push' && !(contains( join( toJson(github.event.commits.*.message) ), '#skip')) }}
+          uses: anothrNick/github-tag-action@1.33.0
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+            DEFAULT_BUMP: patch
+            RELEASE_BRANCHES: main
+
